@@ -1,3 +1,4 @@
+// models/User.js - FINAL VERSION
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 

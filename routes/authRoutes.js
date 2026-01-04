@@ -1,3 +1,4 @@
+// routes/authRoutes.js - FINAL VERSION
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
@@ -7,33 +8,31 @@ const jwt = require('jsonwebtoken');
 // Register route
 router.post('/register', async (req, res) => {
   try {
-    console.log('=== REGISTER REQUEST ===');
-    console.log('Body:', req.body);
+    console.log('Register request:', req.body.email);
     
     const { name, email, password } = req.body;
     
     // Validation
     if (!name || !email || !password) {
       return res.status(400).json({ 
-        message: 'Please provide name, email and password',
-        required: ['name', 'email', 'password']
+        success: false,
+        message: 'Name, email and password are required'
       });
     }
     
     // Check if user exists
-    const userExists = await User.findOne({ email });
-    
-    if (userExists) {
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
       return res.status(400).json({ 
-        message: 'User already exists with this email',
-        field: 'email'
+        success: false,
+        message: 'Email already registered'
       });
     }
     
-    // Create user directly (password will be hashed by pre-save hook)
+    // Create user
     const user = await User.create({
       name,
-      email,
+      email: email.toLowerCase(),
       password // Will be hashed automatically
     });
     
@@ -44,7 +43,7 @@ router.post('/register', async (req, res) => {
       { expiresIn: '30d' }
     );
     
-    console.log('User registered:', user.email);
+    console.log('User registered successfully:', user.email);
     
     res.status(201).json({
       success: true,
@@ -60,48 +59,36 @@ router.post('/register', async (req, res) => {
   } catch (error) {
     console.error('Registration error:', error);
     
-    // Handle duplicate key error
+    // Handle duplicate email
     if (error.code === 11000) {
       return res.status(400).json({ 
         success: false,
-        message: 'Email already registered',
-        field: 'email'
-      });
-    }
-    
-    // Handle validation errors
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        message: messages.join(', ')
+        message: 'Email already registered'
       });
     }
     
     res.status(500).json({ 
       success: false,
-      message: 'Server error during registration'
+      message: 'Registration failed. Please try again.'
     });
   }
 });
 
-// Login route
+// Login route (similar fix)
 router.post('/login', async (req, res) => {
   try {
-    console.log('=== LOGIN REQUEST ===');
+    console.log('Login request:', req.body.email);
     
     const { email, password } = req.body;
     
-    // Validation
     if (!email || !password) {
       return res.status(400).json({ 
         success: false,
-        message: 'Please provide email and password'
+        message: 'Email and password are required'
       });
     }
     
-    // Check for user with password
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     
     if (!user) {
       return res.status(401).json({ 
@@ -110,26 +97,22 @@ router.post('/login', async (req, res) => {
       });
     }
     
-    // Check password
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(password, user.password);
     
-    if (!isPasswordCorrect) {
+    if (!isMatch) {
       return res.status(401).json({ 
         success: false,
         message: 'Invalid email or password'
       });
     }
     
-    // Create token
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     
-    console.log('User logged in:', user.email);
-    
-    res.status(200).json({
+    res.json({
       success: true,
       message: 'Login successful',
       token,
@@ -142,45 +125,9 @@ router.post('/login', async (req, res) => {
     
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error during login'
-    });
-  }
-});
-
-// Get profile
-router.get('/profile', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'No token provided'
-      });
-    }
-    
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'User not found'
-      });
-    }
-    
-    res.json({
-      success: true,
-      user
-    });
-    
-  } catch (error) {
-    console.error('Profile error:', error);
-    res.status(401).json({ 
-      success: false,
-      message: 'Invalid or expired token'
+      message: 'Login failed. Please try again.'
     });
   }
 });
