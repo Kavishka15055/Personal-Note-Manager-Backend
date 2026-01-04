@@ -53,6 +53,17 @@ app.get('/api/test', (req, res) => {
     });
 });
 
+// Test endpoint to check environment
+app.get('/api/env-check', (req, res) => {
+  res.json({
+    node_env: process.env.NODE_ENV,
+    jwt_secret: process.env.JWT_SECRET ? 'SET' : 'NOT SET',
+    mongodb_uri: process.env.MONGODB_URI ? 'SET' : 'NOT SET',
+    frontend_url: process.env.FRONTEND_URL,
+    port: process.env.PORT
+  });
+});
+
 // Root route
 app.get('/', (req, res) => {
     res.json({ 
