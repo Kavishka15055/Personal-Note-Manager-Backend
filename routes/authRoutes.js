@@ -8,15 +8,18 @@ const jwt = require('jsonwebtoken');
 // Register route
 router.post('/register', async (req, res) => {
   try {
-    console.log('Register request:', req.body.email);
+    console.log('Register request body:', req.body);
     
-    const { name, email, password } = req.body;
+    // Accept both 'name' and 'username' fields
+    const { name, username, email, password } = req.body;
     
-    // Validation
-    if (!name || !email || !password) {
+    // Use name if provided, otherwise use username
+    const displayName = name || username;
+    
+    if (!displayName || !email || !password) {
       return res.status(400).json({ 
         success: false,
-        message: 'Name, email and password are required'
+        message: 'Name/Username, email and password are required'
       });
     }
     
@@ -31,9 +34,9 @@ router.post('/register', async (req, res) => {
     
     // Create user
     const user = await User.create({
-      name,
+      name: displayName, // Use the display name
       email: email.toLowerCase(),
-      password // Will be hashed automatically
+      password
     });
     
     // Create token
@@ -59,7 +62,6 @@ router.post('/register', async (req, res) => {
   } catch (error) {
     console.error('Registration error:', error);
     
-    // Handle duplicate email
     if (error.code === 11000) {
       return res.status(400).json({ 
         success: false,
