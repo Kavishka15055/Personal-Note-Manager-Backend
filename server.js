@@ -22,7 +22,7 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
-      process.env.FRONTEND_URL // Add your Vercel frontend URL here
+      'https://personal-note-manager-phi.vercel.app/' // Add your Vercel frontend URL here
     ].filter(Boolean); // Remove undefined values
     
     if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
