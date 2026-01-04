@@ -29,12 +29,21 @@ app.use(express.json());
 // Log all requests for debugging
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  console.log('Request Body:', req.body);
   next();
 });
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/notes', noteRoutes);
+
+app.use((error, req, res, next) => {
+  console.error('Server Error:', error);
+  res.status(error.status || 500).json({
+    message: error.message || 'Internal Server Error',
+    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  });
+});
 
 // Test route
 app.get('/api/test', (req, res) => {
