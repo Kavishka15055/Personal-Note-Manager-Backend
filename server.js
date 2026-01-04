@@ -12,30 +12,25 @@ connectDB();
 
 const app = express();
 
-// Middleware - Update CORS for production
+// Middleware - Simplified CORS for production
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // List of allowed origins
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'https://personal-note-manager-phi.vercel.app/' // Add your Vercel frontend URL here
-    ].filter(Boolean); // Remove undefined values
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'https://personal-note-manager-phi.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
+
 app.use(express.json());
+
+// Log all requests for debugging
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -43,7 +38,10 @@ app.use('/api/notes', noteRoutes);
 
 // Test route
 app.get('/api/test', (req, res) => {
-    res.json({ message: 'API is working!' });
+    res.json({ 
+      message: 'API is working!',
+      timestamp: new Date().toISOString()
+    });
 });
 
 // Root route
@@ -51,7 +49,14 @@ app.get('/', (req, res) => {
     res.json({ 
         message: 'NoteFlow API',
         version: '1.0.0',
-        status: 'running'
+        status: 'running',
+        cors: {
+          allowedOrigins: [
+            'https://personal-note-manager-phi.vercel.app',
+            'http://localhost:3000',
+            'http://localhost:5173'
+          ]
+        }
     });
 });
 
@@ -59,4 +64,9 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log('Allowed origins:', [
+      'https://personal-note-manager-phi.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173'
+    ]);
 });
