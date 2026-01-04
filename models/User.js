@@ -2,32 +2,30 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-    name: {  // Changed from username to name
+    name: {
         type: String,
-        required: true,
+        required: [true, 'Name is required'],
         trim: true,
-        minlength: 2
+        minlength: [2, 'Name must be at least 2 characters']
     },
     email: {
         type: String,
-        required: true,
+        required: [true, 'Email is required'],
         unique: true,
         trim: true,
-        lowercase: true
+        lowercase: true,
+        match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
     },
     password: {
         type: String,
-        required: true,
-        minlength: 6
+        required: [true, 'Password is required'],
+        minlength: [6, 'Password must be at least 6 characters']
     },
     createdAt: {
         type: Date,
         default: Date.now
     }
 });
-
-// Remove the unique constraint from name since names can be duplicated
-// Keep unique only on email
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {

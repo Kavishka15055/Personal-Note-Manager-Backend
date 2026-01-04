@@ -9,53 +9,46 @@ router.post('/register', async (req, res) => {
   try {
     console.log('=== REGISTER REQUEST ===');
     console.log('Body:', req.body);
-    console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
     
     const { name, email, password } = req.body;
     
     // Validation
     if (!name || !email || !password) {
-      console.log('Validation failed: missing fields');
-      return res.status(400).json({ message: 'Please provide all fields' });
+      return res.status(400).json({ 
+        message: 'Please provide name, email and password',
+        required: ['name', 'email', 'password']
+      });
     }
     
     // Check if user exists
-    console.log('Checking if user exists for email:', email);
     const userExists = await User.findOne({ email });
-    console.log('User exists check result:', userExists);
     
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ 
+        message: 'User already exists with this email',
+        field: 'email'
+      });
     }
     
-    // Hash password
-    console.log('Hashing password...');
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    console.log('Password hashed');
-    
-    // Create user
-    console.log('Creating user in database...');
+    // Create user directly (password will be hashed by pre-save hook)
     const user = await User.create({
       name,
       email,
-      password: hashedPassword
+      password // Will be hashed automatically
     });
-    console.log('User created:', user._id);
     
     // Create token
-    console.log('Creating JWT token...');
     const token = jwt.sign(
       { id: user._id },
-      process.env.JWT_SECRET || 'fallback-secret-for-debugging',
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
-    console.log('Token created');
     
-    console.log('=== REGISTRATION SUCCESS ===');
+    console.log('User registered:', user.email);
     
     res.status(201).json({
-      message: 'User created successfully',
+      success: true,
+      message: 'Registration successful',
       token,
       user: {
         id: user._id,
@@ -65,14 +58,29 @@ router.post('/register', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('=== REGISTRATION ERROR ===');
-    console.error('Error:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Registration error:', error);
+    
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email already registered',
+        field: 'email'
+      });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(', ')
+      });
+    }
     
     res.status(500).json({ 
-      message: 'Server error during registration',
-      error: error.message
+      success: false,
+      message: 'Server error during registration'
     });
   }
 });
@@ -81,48 +89,48 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     console.log('=== LOGIN REQUEST ===');
-    console.log('Body:', req.body);
-    console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
     
     const { email, password } = req.body;
     
     // Validation
     if (!email || !password) {
-      console.log('Validation failed: missing email or password');
-      return res.status(400).json({ message: 'Please provide email and password' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Please provide email and password'
+      });
     }
     
-    // Check for user
-    console.log('Finding user for email:', email);
+    // Check for user with password
     const user = await User.findOne({ email }).select('+password');
-    console.log('User found:', user ? 'Yes' : 'No');
     
     if (!user) {
-      console.log('User not found');
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid email or password'
+      });
     }
     
     // Check password
-    console.log('Comparing password...');
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    console.log('Password correct:', isPasswordCorrect);
     
     if (!isPasswordCorrect) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid email or password'
+      });
     }
     
     // Create token
-    console.log('Creating JWT token...');
     const token = jwt.sign(
       { id: user._id },
-      process.env.JWT_SECRET || 'fallback-secret-for-debugging',
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
-    console.log('Token created');
     
-    console.log('=== LOGIN SUCCESS ===');
+    console.log('User logged in:', user.email);
     
     res.status(200).json({
+      success: true,
       message: 'Login successful',
       token,
       user: {
@@ -133,14 +141,10 @@ router.post('/login', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('=== LOGIN ERROR ===');
-    console.error('Error:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    
+    console.error('Login error:', error);
     res.status(500).json({ 
-      message: 'Server error during login',
-      error: error.message
+      success: false,
+      message: 'Server error during login'
     });
   }
 });
@@ -148,29 +152,36 @@ router.post('/login', async (req, res) => {
 // Get profile
 router.get('/profile', async (req, res) => {
   try {
-    console.log('=== PROFILE REQUEST ===');
     const token = req.headers.authorization?.split(' ')[1];
-    console.log('Token provided:', !!token);
     
     if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'No token provided'
+      });
     }
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-for-debugging');
-    console.log('Token decoded, user ID:', decoded.id);
-    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select('-password');
-    console.log('User found:', user ? 'Yes' : 'No');
     
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found'
+      });
     }
     
-    res.json(user);
+    res.json({
+      success: true,
+      user
+    });
     
   } catch (error) {
     console.error('Profile error:', error);
-    res.status(401).json({ message: 'Invalid token' });
+    res.status(401).json({ 
+      success: false,
+      message: 'Invalid or expired token'
+    });
   }
 });
 
